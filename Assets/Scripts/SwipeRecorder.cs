@@ -97,28 +97,28 @@ public class SwipeRecorder : MonoBehaviour
         }
         
 
-        foreach (var word in commonWords)
+        foreach (var word in commonWords) // for each word in my list
         {
             List<Vector2> points = new List<Vector2>();
             Vector2 lastAddedPosition = new Vector2(-999f, -999f); 
 
             string lowerWord = word.ToLower();
 
-            foreach (char letter in lowerWord)
+            foreach (char letter in lowerWord) // for each letter in the word
             {
                 if (_keys.TryGetValue(letter, out Vector2 keyPosition))
                 {
                     if (points.Count == 0 || keyPosition != lastAddedPosition)
                     {
                         points.Add(keyPosition);
-                        lastAddedPosition = keyPosition; 
+                        lastAddedPosition = keyPosition;  // add its position to the word's path
                     }
                 }
             }
 
-            if (points.Count > 1)
+            if (points.Count > 1) // if the word isn't just a letter...
             {
-                _recognizer.SavePattern(word, points);
+                _recognizer.SavePattern(word, points); // send it off to the $1 recognizer that uses it
             }
         }
 
@@ -612,19 +612,21 @@ public class SwipeRecorder : MonoBehaviour
     
     private async void ProcessSwipeAsync(List<Vector2> points, char startChar, char endChar, List<char> anchors, string startName, string endName)
     {
-        var resultsTuple = await Task.Run(() =>
+        var resultsTuple = await Task.Run(() => // goes async to prevent any stuttering
         {
-            List<DollarRecognizer.Result> results = _recognizer.Recognize(points, startChar, endChar, anchors);
+            List<DollarRecognizer.Result> results = _recognizer.Recognize(points, startChar, endChar, anchors); // get a sorted list of possible words (len <= 100)
             
             if (results == null || results.Count == 0)
                 return (finalWord: "", rawWord: "", success: false);
 
             var sortedResults = results
-                .Select(result =>
+                .Select(result => // this is map() in the JS and ruby and python i'm used to
                 {
                     string word = result.Match.Name;
-                    int clampedRank = Mathf.Clamp(Array.IndexOf(commonWords, word), 1, 50000);
-                    float score = result.Score * Mathf.Pow(1.0f - (Mathf.Log(clampedRank) / _bigLog), 0.5f);
+                    int clampedRank = Mathf.Clamp(Array.IndexOf(commonWords, word), 1, 50000); // word #150,000 is judged the same as word #50,000; at that point, they're both just rare words
+                    float score = result.Score * Mathf.Pow(1.0f - (Mathf.Log(clampedRank) / _bigLog), 0.5f); // math; this considers both word fit and rarity well. the power and log stuff
+                                                                                                                 // is to account for the nature of word frequency vs rankings (i.e. the diff.  
+                                                                                                                 // between word #1 and word #100 is much greater than between #10,000 and #10,100)
                     return (word, score);
                 })
                 .OrderByDescending(r => r.score)
@@ -633,17 +635,17 @@ public class SwipeRecorder : MonoBehaviour
             string winningWord = sortedResults[0].word;
             string rawWord = results[0].Match.Name;
 
-            return (finalWord: winningWord, rawWord: rawWord, success: true);
+            return (finalWord: winningWord, rawWord: rawWord, success: true); // returns "rawWord" as well because it has some data we still need
         });
 
         if (!resultsTuple.success) return;
 
-        if (statusText != null)
+        if (statusText != null) // if there's a statusText object, display the status
         {
             statusText.text = $"start is {startName}, end is {endName}, anchors are {new string(anchors.ToArray())}... final word is {resultsTuple.finalWord}.";
         }
 
-        AppendWord(resultsTuple.finalWord);
+        AppendWord(resultsTuple.finalWord); // display the word via my helper function
     }
     
     private IEnumerator BlinkCaretRoutine()

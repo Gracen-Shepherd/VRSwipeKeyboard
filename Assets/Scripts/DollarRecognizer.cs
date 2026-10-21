@@ -205,22 +205,22 @@ public class DollarRecognizer
 	{
 		Vector2[] working = resample(points, _kNormalizedPoints);
 		float angle = indicativeAngle(working);
-		// rotateBy(working, -angle);
-		scaleTo(working, _kNormalizedSize);
-		translateTo(working, Vector2.zero);
+		// rotateBy(working, -angle); DON'T rotate; this is in the OG algorithm, but it messes up what I want to do
+		scaleTo(working, _kNormalizedSize); // scale so that the longest side is 1 unit long
+		translateTo(working, Vector2.zero); // move to (0,0)
 
 		List<float> v = vectorize(working);
 
 		// Create a list to hold all valid matches before we sort them
 		List<Result> allMatches = new List<Result>();
 
-		for (int i = 0; i < _library.Count; i++)
+		for (int i = 0; i < _library.Count; i++) // for each word in my dictionary
 		{
-			// 1. Filter by start and end letter
+			// 1: filter by start and end letter
 			if (_library[i].Name[0] != startLetter) continue;
 			if (_library[i].Name[_library[i].Name.Length - 1] != endLetter) continue;
 
-			bool missingAnchor = false;
+			bool missingAnchor = false; // 2: filter out words w/o anchor letters
 			foreach (char anchorLetter in anchorLetters)
 			{
 				if (!_library[i].Name.Contains(anchorLetter.ToString()))
@@ -231,19 +231,18 @@ public class DollarRecognizer
 
 			if (missingAnchor) continue;
 			
-			// 2. Calculate the distance
+			// 3: calculate the difference between the user curve and generated curve
 			float dist = optimalCosineDistance(_library[i].Vector, v);
         
-			// 3. Calculate score and angle immediately
-			// (Prevent division by zero just in case the distance is a perfect 0)
-			float score = (dist == 0.0f) ? float.MaxValue : 1.0f / dist;
+			// 4: calculate score and angle
+			float score = (dist == 0.0f) ? float.MaxValue : 1.0f / dist; // just in case dist is 0
 			float matchAngle = (_library[i].Angle - angle) * Mathf.Rad2Deg;
 
-			// 4. Add to our temporary list
+			// 5: add to the candidate list
 			allMatches.Add(new Result(_library[i], score, matchAngle));
 		}
 
-		// 5. Sort the list so the highest scores are first, then grab up to 100
+		// finally: sort the list by score, then grab the top 100 before sending the the final ranker
 		List<Result> top100Results = allMatches
 			.OrderByDescending(r => r.Score)
 			.Take(100)
